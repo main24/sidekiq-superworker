@@ -72,7 +72,19 @@ module Sidekiq
         def complete(subjob)
           Superworker.debug "#{subjob.to_info}: Complete"
           subjob.update_attribute(:status, 'complete')
+          processed(subjob)
+        end
 
+        def error(subjob, worker, item, exception)
+          Superworker.debug "#{subjob.to_info}: Error"
+          subjob.update_attribute(:status, 'failed')
+
+          Superworker.options[:continue_on_failed_subjob] ?
+            processed(subjob) :
+            SuperjobProcessor.error(subjob.superjob_id, worker, item, exception)
+        end
+
+        def processed(subjob)
           # If children are present, enqueue the first one
           children = subjob.children
           if children.present?
@@ -83,12 +95,6 @@ module Sidekiq
           else
             descendants_are_complete(subjob)
           end
-        end
-
-        def error(subjob, worker, item, exception)
-          Superworker.debug "#{subjob.to_info}: Error"
-          subjob.update_attribute(:status, 'failed')
-          SuperjobProcessor.error(subjob.superjob_id, worker, item, exception)
         end
 
         protected

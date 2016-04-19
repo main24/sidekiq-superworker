@@ -594,31 +594,66 @@ describe Sidekiq::Superworker::Worker do
     end
 
     describe "failing workers" do
-      it "sets the status to 'failed'" do
-        superjob_id = FailingSuperworker.perform_async(100)
-        trigger_completion_of_sidekiq_job(1)
-        trigger_exception_in_sidekiq_job(3)
-        subjob_statuses_should_equal(
-          1 => 'complete',
-          2 => 'running',
-          3 => 'failed',
-          4 => 'queued',
-          5 => 'initialized'
-        )
+      context 'when continue_on_failed_subjob is true' do
+        before { Sidekiq::Superworker.options[:continue_on_failed_subjob] = true }
+
+        it "sets the status to 'failed'" do
+          superjob_id = FailingSuperworker.perform_async(100)
+          trigger_completion_of_sidekiq_job(1)
+          trigger_exception_in_sidekiq_job(3)
+          subjob_statuses_should_equal(
+            1 => 'complete',
+            2 => 'running',
+            3 => 'failed',
+            4 => 'queued',
+            5 => 'initialized'
+          )
+        end
+
+        it "doesn't run jobs downstream from the failure" do
+          superjob_id = FailingSuperworker.perform_async(100)
+          trigger_completion_of_sidekiq_job(1)
+          trigger_exception_in_sidekiq_job(3)
+          trigger_completion_of_sidekiq_job(4)
+          subjob_statuses_should_equal(
+            1 => 'complete',
+            2 => 'complete',
+            3 => 'failed',
+            4 => 'complete',
+            5 => 'queued'
+          )
+        end
+
+        after { Sidekiq::Superworker.options[:continue_on_failed_subjob] = false }
       end
 
-      it "doesn't run jobs downstream from the failure" do
-        superjob_id = FailingSuperworker.perform_async(100)
-        trigger_completion_of_sidekiq_job(1)
-        trigger_exception_in_sidekiq_job(3)
-        trigger_completion_of_sidekiq_job(4)
-        subjob_statuses_should_equal(
-          1 => 'complete',
-          2 => 'running',
-          3 => 'failed',
-          4 => 'complete',
-          5 => 'initialized'
-        )
+      context 'when continue_on_failed_subjob is false' do
+        it "sets the status to 'failed'" do
+          superjob_id = FailingSuperworker.perform_async(100)
+          trigger_completion_of_sidekiq_job(1)
+          trigger_exception_in_sidekiq_job(3)
+          subjob_statuses_should_equal(
+            1 => 'complete',
+            2 => 'running',
+            3 => 'failed',
+            4 => 'queued',
+            5 => 'initialized'
+          )
+        end
+
+        it "doesn't run jobs downstream from the failure" do
+          superjob_id = FailingSuperworker.perform_async(100)
+          trigger_completion_of_sidekiq_job(1)
+          trigger_exception_in_sidekiq_job(3)
+          trigger_completion_of_sidekiq_job(4)
+          subjob_statuses_should_equal(
+            1 => 'complete',
+            2 => 'running',
+            3 => 'failed',
+            4 => 'complete',
+            5 => 'initialized'
+          )
+        end
       end
     end
   end

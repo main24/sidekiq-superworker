@@ -9,6 +9,7 @@ module Sidekiq
   module Superworker
     DEFAULTS = {
       delete_subjobs_after_superjob_completes: true,
+      continue_on_failed_subjob: false,
       subjob_redis_prefix: 'subjob',
       superjob_expiration: nil
     }
